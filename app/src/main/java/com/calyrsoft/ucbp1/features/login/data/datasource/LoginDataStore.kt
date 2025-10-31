@@ -17,7 +17,7 @@ class LoginDataStore (
 
     suspend fun saveUserName(userName: String) {
         context.dataStore.edit {
-            preferences -> preferences[USER_NAME] = userName
+                preferences -> preferences[USER_NAME] = userName
         }
     }
 

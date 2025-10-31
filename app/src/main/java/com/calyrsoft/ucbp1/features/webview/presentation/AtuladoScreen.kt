@@ -3,50 +3,56 @@ package com.calyrsoft.ucbp1.features.webview.presentation
 import android.annotation.SuppressLint
 import android.graphics.Bitmap
 import android.view.ViewGroup
-import android.webkit.WebResourceError
-import android.webkit.WebResourceRequest
-import android.webkit.WebSettings
-import android.webkit.WebView
-import android.webkit.WebViewClient
+import android.webkit.*
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.ArrowBack
-import androidx.compose.material3.CenterAlignedTopAppBar
-import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.IconButton
-import androidx.compose.material3.Scaffold
-import androidx.compose.material3.Text
-import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
+import androidx.compose.material3.*
+import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.viewinterop.AndroidView
+import kotlinx.coroutines.*
 import java.nio.charset.StandardCharsets
 
 @OptIn(ExperimentalMaterial3Api::class)
 @SuppressLint("SetJavaScriptEnabled")
 @Composable
-fun AtuladoScreen(url: String,
-                  postData: String?,
-                  shouldStopBrowsing: (String?) -> Boolean,
-                  modifier: Modifier){
-
+fun AtuladoScreen(
+    url: String,
+    postData: String?,
+    shouldStopBrowsing: (String?) -> Boolean,
+    modifier: Modifier
+) {
     val webView = remember { mutableStateOf<WebView?>(null) }
     var canGoBack by remember { mutableStateOf(false) }
     var navigateBack by remember { mutableStateOf(false) }
 
-    BackHandler(enabled = true) {
+    // NUEVO: control del mensaje de timeout
+    var showTimeoutAlert by remember { mutableStateOf(false) }
+    val coroutineScope = rememberCoroutineScope()
 
+    BackHandler(enabled = true) { }
+
+    // Timeout solo al cargar la página inicial
+    LaunchedEffect(Unit) {
+        coroutineScope.launch {
+            try {
+                // Espera máximo 2 segundos a que la página termine de cargar
+                withTimeout(2000L) {
+                    while (webView.value?.progress ?: 0 < 100) {
+                        yield() // no bloquea la UI
+                    }
+                }
+            } catch (_: TimeoutCancellationException) {
+                showTimeoutAlert = true
+            }
+        }
     }
+
     LaunchedEffect(navigateBack) {
         if (navigateBack) {
             val currentWebView = webView.value
-
             if (currentWebView != null && currentWebView.canGoBack()) {
                 currentWebView.goBack()
             }
@@ -57,25 +63,17 @@ fun AtuladoScreen(url: String,
     Scaffold(
         topBar = {
             CenterAlignedTopAppBar(
-                title = {
-                    Text("Onboarding")
-                },
+                title = { Text("Onboarding") },
                 navigationIcon = {
-                    if(canGoBack) {
-                        IconButton(
-                            onClick = {
-                                navigateBack = true
-                            }
-                        ) {
+                    if (canGoBack) {
+                        IconButton(onClick = { navigateBack = true }) {
                             Text("Back")
                         }
                     }
                 }
             )
         },
-
         content = { paddingValues ->
-
             AndroidView(
                 modifier = modifier.fillMaxSize().padding(paddingValues),
                 factory = { it ->
@@ -95,7 +93,11 @@ fun AtuladoScreen(url: String,
                         }
 
                         webViewClient = object : WebViewClient() {
-                            override fun onPageStarted(view: WebView, url: String?, favicon: Bitmap?) {
+                            override fun onPageStarted(
+                                view: WebView,
+                                url: String?,
+                                favicon: Bitmap?
+                            ) {
                                 view.settings.setSupportZoom(false)
                             }
 
@@ -105,7 +107,6 @@ fun AtuladoScreen(url: String,
                                 error: WebResourceError?,
                             ) {
                                 super.onReceivedError(view, request, error)
-
                                 println("onReceivedError: ${error?.description}")
                             }
 
@@ -123,7 +124,11 @@ fun AtuladoScreen(url: String,
                                 else super.shouldOverrideUrlLoading(view, request)
                             }
 
-                            override fun doUpdateVisitedHistory(view: WebView?, url: String?, isReload: Boolean) {
+                            override fun doUpdateVisitedHistory(
+                                view: WebView?,
+                                url: String?,
+                                isReload: Boolean
+                            ) {
                                 super.doUpdateVisitedHistory(view, url, isReload)
                                 canGoBack = view?.canGoBack() == true
                             }
@@ -136,10 +141,25 @@ fun AtuladoScreen(url: String,
                         }
                         webView.value = this
                     }
-                },
+                }
             )
 
+            //  Mensaje visual del timeout (azul)
+            if (showTimeoutAlert) {
+                AlertDialog(
+                    onDismissRequest = { showTimeoutAlert = false },
+                    confirmButton = {
+                        Button(
+                            onClick = { showTimeoutAlert = false },
+                            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF1565C0))
+                        ) {
+                            Text("Aceptar", color = Color.White)
+                        }
+                    },
+                    title = { Text("Tiempo de espera agotado") },
+                    text = { Text("La página inicial tardó demasiado en responder.") }
+                )
+            }
         }
     )
-
 }
