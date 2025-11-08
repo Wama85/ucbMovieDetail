@@ -72,6 +72,7 @@ dependencies {
     //serialization
     implementation(libs.kotlinx.serialization.json)
 
+    implementation(libs.androidx.work.runtime.ktx)
 
     //local bundle room
     implementation(libs.bundles.local)
